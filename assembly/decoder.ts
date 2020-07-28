@@ -16,10 +16,11 @@ export abstract class Value {
   static mapValue(): Value { return new NullValue(); }
 
   isNull(): boolean { return false; }
+  isNumber(): boolean { return false; }
 
-  isBool(): boolean { return this.asBool() != null; }
-  asBool(): Box<boolean> | null { return null; }
-  toBool(): boolean { return this.asBool()!.v; }
+  isBoolean(): boolean { return this.asBoolean() != null; }
+  asBoolean(): Box<boolean> | null { return null; }
+  toBoolean(): boolean { return this.asBoolean()!.v; }
 
   isU64(): boolean { return this.asU64() != null; }
   asU64(): Box<u64> | null { return null; }
@@ -62,9 +63,9 @@ export abstract class Value {
   asMap(): Map<Value, Value> | null { return null; }
   toMap(): Map<Value, Value> { return this.asMap()!; }
 
-  isByteArray(): boolean { return this.asByteArray() != null; }
-  asByteArray(): Array<u8> | null { return null; }
-  toByteArray(): Array<u8> { return this.asByteArray()!; }
+  isBytes(): boolean { return this.asBytes() != null; }
+  asBytes(): Uint8Array | null { return null; }
+  toBytes(): Uint8Array { return this.asBytes()!; }
 
   isString(): boolean { return this.asString() != null; }
   asString(): string | null { return null; }
@@ -77,21 +78,30 @@ class NullValue extends Value {
 
 class BooleanValue extends Value {
   readonly v: boolean;
-  asBool(): Box<boolean> | null { return new Box(this.v); }
+  asBoolean(): Box<boolean> | null { return new Box(this.v); }
 }
 
 class U64Value extends Value {
   readonly v: u64;
+  isNumber(): boolean { return true; }
+  asI64(): Box<i64> | null { return null; } // TODO
   asU64(): Box<u64> | null { return new Box(this.v); }
+  asF64(): Box<f64> | null { return null; } // TODO
 }
 
 class I64Value extends Value {
   readonly v: i64;
+  isNumber(): boolean { return true; }
   asI64(): Box<i64> | null { return new Box(this.v); }
+  asU64(): Box<u64> | null { return null; } // TODO
+  asF64(): Box<f64> | null { return null; } // TODO
 }
 
 class F64Value extends Value {
   readonly v: f64;
+  isNumber(): boolean { return true; }
+  asI64(): Box<i64> | null { return null; } // TODO
+  asU64(): Box<u64> | null { return null; } // TODO
   asF64(): Box<f64> | null { return new Box(this.v); }
 }
 
@@ -105,9 +115,9 @@ class MapValue extends Value {
   asMap(): Map<Value, Value> | null { return this.v; }
 }
 
-class ByteArrayValue extends Value {
-  readonly v: Array<u8>
-  asByteArray(): Array<u8> | null { return this.v; }
+class BytesValue extends Value {
+  readonly v: Uint8Array
+  asBytes(): Uint8Array | null { return this.v; }
 }
 
 class StringValue extends Value {
@@ -115,7 +125,26 @@ class StringValue extends Value {
   asString(): string | null { return this.v; }
 }
 
+// Visitor that does not expect any type. Can easily be extended in macros/code generation tools to generate strongly typed deserialization methods.
 export class Visitor {
+  visitU8(v: u8): Value { throw new Error("unexpected U8"); }
+  visitU16(v: u16): Value { throw new Error("unexpected U16"); }
+  visitU32(v: u32): Value { throw new Error("unexpected U32"); }
+  visitU64(v: u64): Value { throw new Error("unexpected U64"); }
+  visitI8(v: u8): Value { throw new Error("unexpected I8"); }
+  visitI16(v: u16): Value { throw new Error("unexpected I16"); }
+  visitI32(v: u32): Value { throw new Error("unexpected I32"); }
+  visitI64(v: u64): Value { throw new Error("unexpected I64"); }
+  visitF32(v: f32): Value { throw new Error("unexpected F32"); }
+  visitF64(v: f64): Value { throw new Error("unexpected F64"); }
+  visitBool(v: boolean): Value { throw new Error("unexpected Bool"); }
+  visitNull(): Value { throw new Error("unexpected Null"); }
+  visitBytes(v: Uint8Array): Value { throw new Error("unexpected Bytes"); }
+  visitString(v: string): Value { throw new Error("unexpected String"); }
+}
+
+// Visitor that creates `Value`s, a loosely typed way of representing any valid CBOR value.
+export class ValueVisitor extends Visitor {
   visitU8(v: u8): Value {
     return { v: v as u64 } as U64Value;
   }
@@ -163,6 +192,14 @@ export class Visitor {
   visitNull(): Value {
     return new NullValue();
   }
+
+  visitBytes(v: Uint8Array): Value {
+    return { v } as BytesValue;
+  }
+
+  visitString(v: string): Value {
+    return { v } as StringValue;
+  }
 }
 
 export class Decoder {
@@ -172,7 +209,6 @@ export class Decoder {
   constructor(buffer: ArrayBuffer) {
     this._view = new DataView(buffer);
     this._pos = 0;
-    // this._remaining_depth = 128;
   }
 
   parseU8(): u8 {
@@ -200,6 +236,7 @@ export class Decoder {
   }
 
   parseF16(): f32 {
+    // TODO
     return 0.;
   }
 
@@ -215,23 +252,22 @@ export class Decoder {
     return v;
   }
 
-  parseByteArray(len: usize, visitor: Visitor): Value {
-    // assert(len < (i32.MAX_VALUE as usize), "length out of range");
-    // assert(len < i32.MAX_VALUE, "length out of range");
-    throw new Error("WEREWR");
-    // this._view
+  parseBytes(len: usize, visitor: Visitor): Value {
+    assert(len <= (i32.MAX_VALUE as usize), "length out of range");
+    const i32len = len as i32;
 
-    // let v = new Array<u8>(len as usize).copyWithin();
-
-    // this._view.buffer
-    // throw new Error("not supported");
-
-    // visitor.visit_bytes_array();
+    const v = Uint8Array.wrap(this._view.buffer, this._pos, i32len);
+    this._pos += i32len;
+    return visitor.visitBytes(v);
   }
 
   parseString(len: usize, visitor: Visitor): Value {
-    // assert(len < i32.MAX_VALUE, "length out of range");
-    throw new Error("not supported");
+    assert(len <= (i32.MAX_VALUE as usize), "length out of range");
+    const i32len = len as i32;
+
+    const v = String.UTF8.decode(this._view.buffer.slice(this._pos, i32len));
+    this._pos += i32len;
+    return visitor.visitString(v);
   }
 
   parseArray(len: usize, visitor: Visitor): Value {
@@ -242,7 +278,7 @@ export class Decoder {
     return { v: new Map() } as MapValue;
   }
 
-  parseIndefiniteByteArray(visitor: Visitor): Value {
+  parseIndefiniteBytes(visitor: Visitor): Value {
     throw new Error("streaming is not supported.");
   }
 
@@ -288,28 +324,28 @@ export class Decoder {
       const value = this.parseU32();
       return visitor.visitI64(1 - (value as i64));
     } else if (byte == 0x3B) {
-      // TODO parse
+      // TODO parseU64, and check for overflow
     } else if (byte >= 0x3C && byte <= 0x3F) {
       throw new Error("unassigned code");
     } else if (byte >= 0x40 && byte <= 0x57) { // Major type 2: byte string
-      return this.parseByteArray(byte as usize - 0x40, visitor);
+      return this.parseBytes(byte as usize - 0x40, visitor);
     } else if (byte == 0x58) {
       const len = this.parseU8() as usize;
-      return this.parseByteArray(len, visitor);
+      return this.parseBytes(len, visitor);
     } else if (byte == 0x59) {
       const len = this.parseU16() as usize;
-      return this.parseByteArray(len, visitor);
+      return this.parseBytes(len, visitor);
     } else if (byte == 0x5A) {
       const len = this.parseU32() as usize;
-      return this.parseByteArray(len, visitor);
+      return this.parseBytes(len, visitor);
     } else if (byte == 0x5B) {
       const len = this.parseU64();
       assert(len < (usize.MAX_VALUE as u64), "length out of range");
-      return this.parseByteArray(len as usize, visitor);
+      return this.parseBytes(len as usize, visitor);
     } else if (byte >= 0x5C && byte <= 0x5E) {
       throw new Error("unassigned code");
     } else if (byte == 0x5F) {
-      return this.parseIndefiniteByteArray(visitor);
+      return this.parseIndefiniteBytes(visitor);
     } else if (byte >= 0x60 && byte <= 0x77) { // Major type 3: a text string
       return this.parseString(byte as usize - 0x60, visitor);
     } else if (byte == 0x78) {

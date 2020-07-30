@@ -7,13 +7,13 @@ export class Box<T> {
 }
 
 export abstract class Value {
-  static nullValue(): Value { return new NullValue(); }
-  static boolValue(v: boolean): Value { return { v } as BooleanValue; }
-  static u64Value(v: u64): Value { return { v } as U64Value; }
-  static i64Value(v: i64): Value { return { v } as I64Value; }
-  static f64Value(v: f64): Value { return { v } as F64Value; }
-  static arrayValue(): Value { return new NullValue(); }
-  static mapValue(): Value { return new NullValue(); }
+  static fromNull(): Value { return new NullValue(); }
+  static fromBoolean(v: boolean): Value { return { v } as BooleanValue; }
+  static fromU64(v: u64): Value { return { v } as U64Value; }
+  static fromI64(v: i64): Value { return { v } as I64Value; }
+  static fromF64(v: f64): Value { return { v } as F64Value; }
+  static fromArray(): Value { return new NullValue(); }
+  static fromMap(): Value { return new NullValue(); }
 
   isNull(): boolean { return false; }
   isNumber(): boolean { return false; }
@@ -26,34 +26,13 @@ export abstract class Value {
   asU64(): Box<u64> | null { return null; }
   toU64(): u64 { return this.asU64()!.v; }
 
-  // isU32(): boolean { return this.asU32() != null; }
-  // asU32(): Box<u32> | null { return null; }
-
-  // isU16(): boolean { return this.asU16() != null; }
-  // asU16(): Box<u16> | null { return null; }
-
-  // isU8(): boolean { return this.asU8() != null; }
-  // asU8(): Box<u8> | null { return null; }
-
   isI64(): boolean { return this.asI64() != null; }
   asI64(): Box<i64> | null { return null; }
   toI64(): i64 { return this.asI64()!.v; }
 
-  // isI32(): boolean { return this.asI32() != null; }
-  // asI32(): Box<i32> | null { return null; }
-
-  // isI16(): boolean { return this.asI16() != null; }
-  // asI16(): Box<i16> | null { return null; }
-
-  // isI8(): boolean { return this.asI8() != null; }
-  // asI8(): Box<i8> | null { return null; }
-
   isF64(): boolean { return this.asF64() != null; }
   asF64(): Box<f64> | null { return null; }
   toF64(): f64 { return this.asF64()!.v; }
-
-  // isF32(): boolean { return this.asF32() != null; }
-  // asF32(): Box<f32> | null { return null; }
 
   isArray(): boolean { return this.asArray() != null; }
   asArray(): Array<Value> | null { return null; }
@@ -70,59 +49,108 @@ export abstract class Value {
   isString(): boolean { return this.asString() != null; }
   asString(): string | null { return null; }
   toString(): string { return this.asString()!; }
+
+  @operator("==")
+  __eq(other: Value): boolean {
+    return this.___eq(other);
+  }
+
+  protected abstract ___eq(other: Value): boolean;
 }
 
 class NullValue extends Value {
   isNull(): boolean { return true; }
+
+  protected ___eq(other: Value): boolean {
+    return other.isNull();
+  }
 }
 
 class BooleanValue extends Value {
   readonly v: boolean;
   asBoolean(): Box<boolean> | null { return new Box(this.v); }
+
+  protected ___eq(other: Value): boolean {
+    const otherV = other.asBoolean();
+    return otherV && otherV.v == this.v;
+  }
 }
 
 class U64Value extends Value {
   readonly v: u64;
   isNumber(): boolean { return true; }
-  asI64(): Box<i64> | null { return null; } // TODO
+  asI64(): Box<i64> | null { return null; } // TODO: lossless conversion or null
   asU64(): Box<u64> | null { return new Box(this.v); }
-  asF64(): Box<f64> | null { return null; } // TODO
+  asF64(): Box<f64> | null { return null; } // TODO: lossless conversion or null
+
+  protected ___eq(other: Value): boolean {
+    const otherV = other.asU64();
+    return otherV && otherV.v == this.v;
+  }
 }
 
 class I64Value extends Value {
   readonly v: i64;
   isNumber(): boolean { return true; }
   asI64(): Box<i64> | null { return new Box(this.v); }
-  asU64(): Box<u64> | null { return null; } // TODO
-  asF64(): Box<f64> | null { return null; } // TODO
+  asU64(): Box<u64> | null { return null; } // TODO: lossless conversion or null
+  asF64(): Box<f64> | null { return null; } // TODO: lossless conversion or null
+
+  protected ___eq(other: Value): boolean {
+    const otherV = other.asI64();
+    return otherV && otherV.v == this.v;
+  }
 }
 
 class F64Value extends Value {
   readonly v: f64;
   isNumber(): boolean { return true; }
-  asI64(): Box<i64> | null { return null; } // TODO
-  asU64(): Box<u64> | null { return null; } // TODO
+  asI64(): Box<i64> | null { return null; } // TODO: lossless conversion or null
+  asU64(): Box<u64> | null { return null; } // TODO: lossless conversion or null
   asF64(): Box<f64> | null { return new Box(this.v); }
+
+  protected ___eq(other: Value): boolean {
+    const otherV = other.asF64();
+    return otherV && otherV.v == this.v;
+  }
 }
 
 class ArrayValue extends Value {
-  readonly v: Array<Value>
+  readonly v: Array<Value>;
   asArray(): Array<Value> | null { return this.v; }
+
+  protected ___eq(other: Value): boolean {
+    const otherV = other.asArray();
+    return otherV && otherV == this.v;
+  }
 }
 
 class MapValue extends Value {
-  readonly v: Map<Value, Value>
+  readonly v: Map<Value, Value>;
   asMap(): Map<Value, Value> | null { return this.v; }
+
+  protected ___eq(other: Value): boolean {
+    const otherV = other.asMap();
+    return otherV && otherV == this.v;
+  }
 }
 
 class BytesValue extends Value {
-  readonly v: Uint8Array
+  readonly v: Uint8Array;
   asBytes(): Uint8Array | null { return this.v; }
+
+  protected ___eq(other: Value): boolean {
+    return this.asBytes() == other.asBytes();
+  }
 }
 
 class StringValue extends Value {
-  readonly v: string
+  readonly v: string;
   asString(): string | null { return this.v; }
+
+  protected ___eq(other: Value): boolean {
+    return this.asString() == other.asString();
+  }
 }
 
 // Visitor that does not expect any type. Can easily be extended in macros/code generation tools to generate strongly typed deserialization methods.
@@ -141,6 +169,12 @@ export class Visitor {
   visitNull(): Value { throw new Error("unexpected Null"); }
   visitBytes(v: Uint8Array): Value { throw new Error("unexpected Bytes"); }
   visitString(v: string): Value { throw new Error("unexpected String"); }
+  visitArray(v: Array<Value>): Value { throw new Error("unexpected Array"); }
+  visitMap(v: Map<Value, Value>): Value { throw new Error("unexpected Map"); }
+
+  // todo: stack based visitor...
+  // push(v: Value): Value { throw new Error("pushing an unexpected Value"); }
+  // pushEntry(k: Value, v: Value) { throw new Error("pushing an unexpected Entry"); }
 }
 
 // Visitor that creates `Value`s, a loosely typed way of representing any valid CBOR value.
@@ -200,6 +234,14 @@ export class ValueVisitor extends Visitor {
   visitString(v: string): Value {
     return { v } as StringValue;
   }
+
+  visitArray(v: Array<Value>): Value {
+    return { v } as ArrayValue;
+  }
+
+  visitMap(v: Map<Value, Value>): Value {
+    return { v } as MapValue;
+  }
 }
 
 export class Decoder {
@@ -211,86 +253,105 @@ export class Decoder {
     this._pos = 0;
   }
 
-  parseU8(): u8 {
+  private parseU8(): u8 {
     const v = this._view.getUint8(this._pos);
     this._pos += 1;
     return v;
   }
 
-  parseU16(): u16 {
+  private parseU16(): u16 {
     const v = this._view.getUint16(this._pos);
     this._pos += 2;
     return v;
   }
 
-  parseU32(): u32 {
+  private parseU32(): u32 {
     const v = this._view.getUint32(this._pos);
     this._pos += 4;
     return v;
   }
 
-  parseU64(): u64 {
+  private parseU64(): u64 {
     const v = this._view.getUint64(this._pos);
     this._pos += 8;
     return v;
   }
 
-  parseF16(): f32 {
+  private parseF16(): f32 {
     // TODO
     return 0.;
   }
 
-  parseF32(): f32 {
+  private parseF32(): f32 {
     const v = this._view.getFloat32(this._pos);
     this._pos += 4;
     return v;
   }
 
-  parseF64(): f64 {
+  private parseF64(): f64 {
     const v = this._view.getFloat64(this._pos);
     this._pos += 8;
     return v;
   }
 
-  parseBytes(len: usize, visitor: Visitor): Value {
+  private parseBytes(len: usize, visitor: Visitor): Value {
     assert(len <= (i32.MAX_VALUE as usize), "length out of range");
     const i32len = len as i32;
 
-    const v = Uint8Array.wrap(this._view.buffer, this._pos, i32len);
+    const v = Uint8Array.wrap(this._view.buffer.slice(this._pos, i32len + 1));
     this._pos += i32len;
     return visitor.visitBytes(v);
   }
 
-  parseString(len: usize, visitor: Visitor): Value {
+  private parseString(len: usize, visitor: Visitor): Value {
     assert(len <= (i32.MAX_VALUE as usize), "length out of range");
     const i32len = len as i32;
 
-    const v = String.UTF8.decode(this._view.buffer.slice(this._pos, i32len));
+    const v = String.UTF8.decode(this._view.buffer.slice(this._pos, i32len + 1));
     this._pos += i32len;
     return visitor.visitString(v);
   }
 
-  parseArray(len: usize, visitor: Visitor): Value {
-    return { v: new Array() } as ArrayValue;
+  private parseArray(len: usize, visitor: Visitor): Value {
+    assert(len <= (i32.MAX_VALUE as usize), "length out of range");
+    const i32len = len as i32;
+
+    const v = new Array<Value>(i32len);
+    for(let i: i32 = 0; i < i32len; i += 1) {
+      v[i] = this.parseValue(visitor);
+    }
+
+    return visitor.visitArray(v);
   }
 
-  parseMap(len: usize, visitor: Visitor): Value {
-    return { v: new Map() } as MapValue;
+  private parseMap(len: usize, visitor: Visitor): Value {
+    assert(len <= (i32.MAX_VALUE as usize), "length out of range");
+    const i32len = len as i32;
+
+    const v = new Map<Value, Value>();
+    for(let i: i32 = 0; i < i32len; i += 1) {
+      const key = this.parseValue(visitor);
+      const value = this.parseValue(visitor);
+      // TODO: validate for uniqueness
+      v.set(key, value);
+    }
+
+    return visitor.visitMap(v);
   }
 
-  parseIndefiniteBytes(visitor: Visitor): Value {
+  private parseIndefiniteBytes(visitor: Visitor): Value {
     throw new Error("streaming is not supported.");
   }
 
-  parseIndefiniteString(visitor: Visitor): Value {
+  private parseIndefiniteString(visitor: Visitor): Value {
     throw new Error("streaming is not supported.");
   }
 
-  parseIndefiniteArray(visitor: Visitor): Value {
+  private parseIndefiniteArray(visitor: Visitor): Value {
     throw new Error("streaming is not supported.");
   }
 
-  parseIndefiniteMap(visitor: Visitor): Value {
+  private parseIndefiniteMap(visitor: Visitor): Value {
     throw new Error("streaming is not supported.");
   }
 

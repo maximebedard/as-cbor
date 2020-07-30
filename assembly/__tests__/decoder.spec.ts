@@ -1,4 +1,4 @@
-import {Decoder, Visitor, Value} from "../";
+import {Decoder, ValueVisitor, Value} from "../";
 
 function hexEncodedValue(s: string): Value {
   const buffer = s.split(" ")
@@ -6,11 +6,19 @@ function hexEncodedValue(s: string): Value {
     .buffer;
 
   const decoder = new Decoder(buffer);
-  return decoder.parseValue(new Visitor());
+  return decoder.parseValue(new ValueVisitor());
+}
+
+function bytesFromArray(bytes: Array<u8>): Uint8Array {
+  const result = new Uint8Array(bytes.length);
+  for(let i: i32 = 0; i < bytes.length; i += 1) {
+    result[i] = bytes[i];
+  }
+  return result;
 }
 
 describe("Decoder", () => {
-  describe("numbers", () => {
+  describe("decode numbers", () => {
     it("as u64", () => {
       expect(hexEncodedValue("00").toU64()).toBe(0); // 0
       expect(hexEncodedValue("01").toU64()).toBe(1); // 1
@@ -175,8 +183,10 @@ describe("Decoder", () => {
   })
 
   it("decodes bytes", () => {
-    expect(hexEncodedValue("40").toBytes()).toStrictEqual(new Uint8Array(0)); // h''
-    expect(hexEncodedValue("44 01 02 03 04").toBytes()).toStrictEqual(new Uint8Array(0)); // h'01020304'
+    expect(hexEncodedValue("40").toBytes())
+      .toStrictEqual(bytesFromArray([])); // h''
+    expect(hexEncodedValue("44 01 02 03 04").toBytes())
+      .toStrictEqual(bytesFromArray([1, 2, 3, 4])); // h'01020304'
   });
 
   xit("decodes tagged value", () => {
@@ -190,23 +200,29 @@ describe("Decoder", () => {
 
   it("decodes strings", () => {
     expect(hexEncodedValue("60").toString()).toBe(""); // ""
-    expect(hexEncodedValue("61 61").toString()).toBe("IETF"); // "IETF"
-    expect(hexEncodedValue("62 22 5c").toString()).toBe("\""); // "\"\\"
+    expect(hexEncodedValue("61 61").toString()).toBe("a"); // "a"
+    expect(hexEncodedValue("62 22 5c").toString()).toBe("\"\\"); // "\"\\"
     expect(hexEncodedValue("62 c3 bc").toString()).toBe("ü"); // "\u00fc"
     expect(hexEncodedValue("63 e6 b0 b4").toString()).toBe("水"); // "\u6c34"
     expect(hexEncodedValue("64 f0 90 85 91").toString()).toBe("𐅑"); // "\ud800\udd51"
   });
 
-  xit("decodes arrays", () => {
-    hexEncodedValue("80"); // []
-    hexEncodedValue("83 01 02 03"); // [1, 2, 3]
-    hexEncodedValue("83 01 82 02 03 82 04 05"); // [1, [2, 3], [4, 5]]
-    hexEncodedValue("98 19 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f 10 11 12 13 14 15 16 17 18 18 18 19"); // [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25]
+  it("decodes arrays", () => {
+    // assert(hexEncodedValue("80").toArray() == []);
+    // expect(hexEncodedValue("80").toArray()).toBe([]);
+    // assert(hexEncodedValue("80").toArray() == []);
+    // const a = hexEncodedValue("80").toArray();
+    // const c = a == [];
+    // assert(a == []);
+    // log(hexEncodedValue("80").toArray());
+    // log(hexEncodedValue("83 01 02 03").toArray()); // [1, 2, 3]
+    // log(hexEncodedValue("83 01 82 02 03 82 04 05").toArray()); // [1, [2, 3], [4, 5]]
+    // log(hexEncodedValue("98 19 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f 10 11 12 13 14 15 16 17 18 18 18 19").toArray()); // [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25]
   });
 
-  xit("decodes maps", () => {
-    hexEncodedValue("a0"); // {}
-    hexEncodedValue("a2 01 02 03 04"); // {1: 2, 3: 4}
+  it("decodes maps", () => {
+    log(hexEncodedValue("a0")); // {}
+    log(hexEncodedValue("a2 01 02 03 04")); // {1: 2, 3: 4}
     hexEncodedValue("a2 61 61 01 61 62 82 02 03"); // {"a": 1, "b": [2, 3]}
     hexEncodedValue("82 61 61 a1 61 62 61 63"); // ["a", {"b": "c"}]
     hexEncodedValue("a5 61 61 61 41 61 62 61 42 61 63 61 43 61 64 61 44 61 65 61 45"); // {"a": "A", "b": "B", "c":"C", "d": "D", "e": "E"}
@@ -228,26 +244,31 @@ describe("Decoder", () => {
 });
 
 describe("Value", () => {
-  it("bool", () => {
-    const v1 = Value.boolValue(true);
+  it("true", () => {
+    const v = Value.fromBoolean(true);
 
-    expect(v1.isNull()).toBe(false);
-    expect(v1.isBoolean()).toBe(true);
-    expect(v1.asBoolean()!.v).toBe(true);
-
-    const v2 = Value.boolValue(false);
-
-    expect(v2.isNull()).toBe(false);
-    expect(v2.isBoolean()).toBe(true);
-    expect(v2.asBoolean()!.v).toBe(false);
+    expect(v.isNull()).toBe(false);
+    expect(v.isBoolean()).toBe(true);
+    expect(v.toBoolean()).toBe(true);
   });
 
-  it("number", () => {
+  it("false", () => {
+    const v = Value.fromBoolean(false);
 
+    expect(v.isNull()).toBe(false);
+    expect(v.isBoolean()).toBe(true);
+    expect(v.toBoolean()).toBe(false);
+  })
+
+  describe("numbers", () => {
+    it("u64", () => {});
+    it("i64", () => {});
+    it("f64", () => {});
   });
 
   it("null", () => {
-    const v = Value.nullValue();
+    const v = Value.fromNull();
     expect(v.isNull()).toBe(true);
+    expect(v.isBoolean()).toBe(false);
   });
 });

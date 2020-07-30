@@ -21,3 +21,14 @@ supported features:
 - [x] encoding/decoding
 - [ ] streaming
 - [ ] enums
+
+# Usage
+
+```ts
+import * as cbor from "as-cbor";
+
+const v = cbor.Value.u64(1000000);
+const v = cbor.decode("1a 00 0f 42 40");
+const vAsU64 = v.asU64() // 1000000
+cbor.encode(v) // "1a 00 0f 42 40"
+```

@@ -278,7 +278,50 @@ export class Decoder {
   }
 
   private parseF16(): f32 {
-    // TODO
+    // convert half precision float to f32
+    // rust code that does this without relying on libc
+    // fn f16_to_f32_fallback(i: u16) -> f32 {
+    //     // Check for signed zero
+    //     if i & 0x7FFFu16 == 0 {
+    //         return f32::from_bits((i as u32) << 16);
+    //     }
+
+    //     let half_sign = (i & 0x8000u16) as u32;
+    //     let half_exp = (i & 0x7C00u16) as u32;
+    //     let half_man = (i & 0x03FFu16) as u32;
+
+    //     // Check for an infinity or NaN when all exponent bits set
+    //     if half_exp == 0x7C00u32 {
+    //         // Check for signed infinity if mantissa is zero
+    //         if half_man == 0 {
+    //             return f32::from_bits((half_sign << 16) | 0x7F80_0000u32);
+    //         } else {
+    //             // NaN, keep current mantissa but also set most significiant mantissa bit
+    //             return f32::from_bits((half_sign << 16) | 0x7FC0_0000u32 | (half_man << 13));
+    //         }
+    //     }
+
+    //     // Calculate single-precision components with adjusted exponent
+    //     let sign = half_sign << 16;
+    //     // Unbias exponent
+    //     let unbiased_exp = ((half_exp as i32) >> 10) - 15;
+
+    //     // Check for subnormals, which will be normalized by adjusting exponent
+    //     if half_exp == 0 {
+    //         // Calculate how much to adjust the exponent by
+    //         let e = (half_man as u16).leading_zeros() - 6;
+
+    //         // Rebias and adjust exponent
+    //         let exp = (127 - 15 - e) << 23;
+    //         let man = (half_man << (14 + e)) & 0x7F_FF_FFu32;
+    //         return f32::from_bits(sign | exp | man);
+    //     }
+
+    //     // Rebias exponent for a normalized normal
+    //     let exp = ((unbiased_exp + 127) as u32) << 23;
+    //     let man = (half_man & 0x03FFu32) << 13;
+    //     f32::from_bits(sign | exp | man)
+    // }
     return 0.;
   }
 

@@ -65,17 +65,18 @@ describe("Decoder", () => {
     });
 
     it("as i64", () => {
-      // expect(hexEncodedValue("00").toI64()).toBe(0); // 0
-      // expect(hexEncodedValue("01").toI64()).toBe(1); // 1
-      // expect(hexEncodedValue("0a").toI64()).toBe(10); // 10
-      // expect(hexEncodedValue("17").toI64()).toBe(23); // 23
-      // expect(hexEncodedValue("18 18").toI64()).toBe(24); // 24
-      // expect(hexEncodedValue("18 19").toI64()).toBe(25); // 25
-      // expect(hexEncodedValue("18 64").toI64()).toBe(100); // 100
-      // expect(hexEncodedValue("19 03 e8").toI64()).toBe(1000); // 1000
-      // expect(hexEncodedValue("1a 00 0f 42 40").toI64()).toBe(1000000); // 1000000
-      // expect(hexEncodedValue("1b 00 00 00 e8 d4 a5 10 00").toI64()).toBe(1000000000000); // 1000000000000
-      // expect(hexEncodedValue("1b ff ff ff ff ff ff ff ff").toI64()).toBe(18446744073709551615); // 18446744073709551615
+      expect(hexEncodedValue("00").toI64()).toBe(0); // 0
+      expect(hexEncodedValue("01").toI64()).toBe(1); // 1
+      expect(hexEncodedValue("0a").toI64()).toBe(10); // 10
+      expect(hexEncodedValue("17").toI64()).toBe(23); // 23
+      expect(hexEncodedValue("18 18").toI64()).toBe(24); // 24
+      expect(hexEncodedValue("18 19").toI64()).toBe(25); // 25
+      expect(hexEncodedValue("18 64").toI64()).toBe(100); // 100
+      expect(hexEncodedValue("19 03 e8").toI64()).toBe(1000); // 1000
+      expect(hexEncodedValue("1a 00 0f 42 40").toI64()).toBe(1000000); // 1000000
+      expect(hexEncodedValue("1b 00 00 00 e8 d4 a5 10 00").toI64()).toBe(1000000000000); // 1000000000000
+      expect(hexEncodedValue("1b 7F FF FF FF FF FF FF FF").toI64()).toBe(i64.MAX_VALUE); // 9223372036854775807
+      expect(hexEncodedValue("1b ff ff ff ff ff ff ff ff").asI64()).toBe(null); // 18446744073709551615
       // TODO: bignums
       // expect(hexEncodedValue("c2 49 01 00 00 00 00 00 00 00 00")).toBe(18446744073709551616); // 18446744073709551616
       // expect(hexEncodedValue("3b ff ff ff ff ff ff ff ff")).toBe(); // -18446744073709551616
@@ -134,9 +135,9 @@ describe("Decoder", () => {
       // expect(hexEncodedValue("39 03 e7").asU64()).toBe(null); // -1000
 
       // TODO: f16
-      // expect(hexEncodedValue("f9 00 00").toF64()).toBe(0.0); // 0.0
-      // expect(hexEncodedValue("f9 80 00").toF64()).toBe(-0.0); // -0.0
-      // expect(hexEncodedValue("f9 3c 00").toF64()).toBe(1.0); // 1.0
+      expect(hexEncodedValue("f9 00 00").toF64()).toStrictEqual(0.0); // 0.0
+      expect(hexEncodedValue("f9 80 00").toF64()).toStrictEqual(-0.0); // -0.0
+      expect(hexEncodedValue("f9 3c 00").toF64()).toStrictEqual(1.0); // 1.0
       expect(hexEncodedValue("fb 3f f1 99 99 99 99 99 9a").toF64()).toBe(1.1); // 1.1
       // expect(hexEncodedValue("f9 3e 00").toF64()).toBe(1.5); // 1.5
       // expect(hexEncodedValue("f9 7b ff").toF64()).toBe(65504.0); // 65504.0
@@ -147,15 +148,15 @@ describe("Decoder", () => {
       // expect(hexEncodedValue("f9 04 00")).toBe(); // 0.00006103515625
       // expect(hexEncodedValue("f9 c4 00")).toBe(); // -4.0
       expect(hexEncodedValue("fb c0 10 66 66 66 66 66 66").toF64()).toBe(-4.1); // -4.1
-      // expect(hexEncodedValue("f9 7c 00")).toBe(); // Infinity
-      // expect(hexEncodedValue("f9 7e 00")).toBe(); // NaN
-      // expect(hexEncodedValue("f9 fc 00")).toBe(); // -Infinity
-      expect(hexEncodedValue("fa 7f 80 00 00").toF64()).toBe(F64.POSITIVE_INFINITY); // Infinity
-      // expect(hexEncodedValue("fa 7f c0 00 00").toF64()).toBe(F64.NaN); // NaN
-      expect(hexEncodedValue("fa ff 80 00 00").toF64()).toBe(F64.NEGATIVE_INFINITY); // -Infinity
-      expect(hexEncodedValue("fb 7f f0 00 00 00 00 00 00").toF64()).toBe(F64.POSITIVE_INFINITY); // Infinity
-      // expect(hexEncodedValue("fb 7f f8 00 00 00 00 00 00").toF64()).toBe(F64.NaN); // NaN
-      expect(hexEncodedValue("fb ff f0 00 00 00 00 00 00").toF64()).toBe(F64.NEGATIVE_INFINITY); // -Infinity
+      // expect(hexEncodedValue("f9 7c 00").toF64()).toBe(F64.POSITIVE_INFINITY); // Infinity
+      // expect(hexEncodedValue("f9 7e 00").toF64()).toStrictEqual(F64.NaN); // NaN
+      // expect(hexEncodedValue("f9 fc 00").toF64()).toBe(F64.NEGATIVE_INFINITY); // -Infinity
+      expect(hexEncodedValue("fa 7f 80 00 00").toF64()).toStrictEqual(F64.POSITIVE_INFINITY); // Infinity
+      expect(hexEncodedValue("fa 7f c0 00 00").toF64()).toStrictEqual(F64.NaN); // NaN
+      expect(hexEncodedValue("fa ff 80 00 00").toF64()).toStrictEqual(F64.NEGATIVE_INFINITY); // -Infinity
+      expect(hexEncodedValue("fb 7f f0 00 00 00 00 00 00").toF64()).toStrictEqual(F64.POSITIVE_INFINITY); // Infinity
+      expect(hexEncodedValue("fb 7f f8 00 00 00 00 00 00").toF64()).toStrictEqual(F64.NaN); // NaN
+      expect(hexEncodedValue("fb ff f0 00 00 00 00 00 00").toF64()).toStrictEqual(F64.NEGATIVE_INFINITY); // -Infinity
     })
   });
 
@@ -221,8 +222,8 @@ describe("Decoder", () => {
   });
 
   it("decodes maps", () => {
-    log(hexEncodedValue("a0")); // {}
-    log(hexEncodedValue("a2 01 02 03 04")); // {1: 2, 3: 4}
+    hexEncodedValue("a0"); // {}
+    hexEncodedValue("a2 01 02 03 04"); // {1: 2, 3: 4}
     hexEncodedValue("a2 61 61 01 61 62 82 02 03"); // {"a": 1, "b": [2, 3]}
     hexEncodedValue("82 61 61 a1 61 62 61 63"); // ["a", {"b": "c"}]
     hexEncodedValue("a5 61 61 61 41 61 62 61 42 61 63 61 43 61 64 61 44 61 65 61 45"); // {"a": "A", "b": "B", "c":"C", "d": "D", "e": "E"}
@@ -272,3 +273,25 @@ describe("Value", () => {
     expect(v.isBoolean()).toBe(false);
   });
 });
+
+
+    // #[test]
+    // fn test_f16_to_f32() {
+    //     let f = f16::from_f32(7.0);
+    //     assert_eq!(f.to_f32(), 7.0f32);
+
+    //     // 7.1 is NOT exactly representable in 16-bit, it's rounded
+    //     let f = f16::from_f32(7.1);
+    //     let diff = (f.to_f32() - 7.1f32).abs();
+    //     // diff must be <= 4 * EPSILON, as 7 has two more significant bits than 1
+    //     assert!(diff <= 4.0 * f16::EPSILON.to_f32());
+
+    //     assert_eq!(f16::from_bits(0x0000_0001).to_f32(), 2.0f32.powi(-24));
+    //     assert_eq!(f16::from_bits(0x0000_0005).to_f32(), 5.0 * 2.0f32.powi(-24));
+
+    //     assert_eq!(f16::from_bits(0x0000_0001), f16::from_f32(2.0f32.powi(-24)));
+    //     assert_eq!(
+    //         f16::from_bits(0x0000_0005),
+    //         f16::from_f32(5.0 * 2.0f32.powi(-24))
+    //     );
+    // }

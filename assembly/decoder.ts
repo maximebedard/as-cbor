@@ -79,7 +79,12 @@ class BooleanValue extends Value {
 class U64Value extends Value {
   readonly v: u64;
   isNumber(): boolean { return true; }
-  asI64(): Box<i64> | null { return null; } // TODO: lossless conversion or null
+  asI64(): Box<i64> | null {
+    if (this.v <= (i64.MAX_VALUE as u64)) {
+      return new Box(i64(this.v));
+    }
+    return null;
+  }
   asU64(): Box<u64> | null { return new Box(this.v); }
   asF64(): Box<f64> | null { return null; } // TODO: lossless conversion or null
 
@@ -93,7 +98,13 @@ class I64Value extends Value {
   readonly v: i64;
   isNumber(): boolean { return true; }
   asI64(): Box<i64> | null { return new Box(this.v); }
-  asU64(): Box<u64> | null { return null; } // TODO: lossless conversion or null
+  asU64(): Box<u64> | null {
+    if (this.v >= (u64.MIN_VALUE as i64)) {
+      return new Box(u64(this.v));
+    }
+    return null;
+  }
+
   asF64(): Box<f64> | null { return null; } // TODO: lossless conversion or null
 
   protected ___eq(other: Value): boolean {
@@ -159,10 +170,10 @@ export class Visitor {
   visitU16(v: u16): Value { throw new Error("unexpected U16"); }
   visitU32(v: u32): Value { throw new Error("unexpected U32"); }
   visitU64(v: u64): Value { throw new Error("unexpected U64"); }
-  visitI8(v: u8): Value { throw new Error("unexpected I8"); }
-  visitI16(v: u16): Value { throw new Error("unexpected I16"); }
-  visitI32(v: u32): Value { throw new Error("unexpected I32"); }
-  visitI64(v: u64): Value { throw new Error("unexpected I64"); }
+  visitI8(v: i8): Value { throw new Error("unexpected I8"); }
+  visitI16(v: i16): Value { throw new Error("unexpected I16"); }
+  visitI32(v: i32): Value { throw new Error("unexpected I32"); }
+  visitI64(v: i64): Value { throw new Error("unexpected I64"); }
   visitF32(v: f32): Value { throw new Error("unexpected F32"); }
   visitF64(v: f64): Value { throw new Error("unexpected F64"); }
   visitBool(v: boolean): Value { throw new Error("unexpected Bool"); }
@@ -195,19 +206,19 @@ export class ValueVisitor extends Visitor {
     return { v } as U64Value;
   }
 
-  visitI8(v: u8): Value {
+  visitI8(v: i8): Value {
     return { v: v as i64 } as I64Value;
   }
 
-  visitI16(v: u16): Value {
+  visitI16(v: i16): Value {
     return { v: v as i64 } as I64Value;
   }
 
-  visitI32(v: u32): Value {
+  visitI32(v: i32): Value {
     return { v: v as i64 } as I64Value;
   }
 
-  visitI64(v: u64): Value {
+  visitI64(v: i64): Value {
     return { v } as I64Value;
   }
 
@@ -278,51 +289,48 @@ export class Decoder {
   }
 
   private parseF16(): f32 {
-    // convert half precision float to f32
-    // rust code that does this without relying on libc
-    // fn f16_to_f32_fallback(i: u16) -> f32 {
-    //     // Check for signed zero
-    //     if i & 0x7FFFu16 == 0 {
-    //         return f32::from_bits((i as u32) << 16);
-    //     }
+    return 0.0;
+    const v = this.parseU16();
 
-    //     let half_sign = (i & 0x8000u16) as u32;
-    //     let half_exp = (i & 0x7C00u16) as u32;
-    //     let half_man = (i & 0x03FFu16) as u32;
+    // Check for signed zero
+    if (v & 0x7FFF == 0) {
+      return reinterpret<f32>(((v as u32) << 16));
+    }
 
-    //     // Check for an infinity or NaN when all exponent bits set
-    //     if half_exp == 0x7C00u32 {
-    //         // Check for signed infinity if mantissa is zero
-    //         if half_man == 0 {
-    //             return f32::from_bits((half_sign << 16) | 0x7F80_0000u32);
-    //         } else {
-    //             // NaN, keep current mantissa but also set most significiant mantissa bit
-    //             return f32::from_bits((half_sign << 16) | 0x7FC0_0000u32 | (half_man << 13));
-    //         }
-    //     }
+    const halfSign = (v & 0x8000) as u32;
+    const halfExp = (v & 0x7C00) as u32;
+    const halfMan = (v & 0x30FF) as u32;
 
-    //     // Calculate single-precision components with adjusted exponent
-    //     let sign = half_sign << 16;
-    //     // Unbias exponent
-    //     let unbiased_exp = ((half_exp as i32) >> 10) - 15;
+    // Check for an infinity or NaN when all exponent bits set
+    if (halfExp == 0x7C00) {
+      // Check for signed infinity if mantissa is zero
+      if (halfMan == 0) {
+        return reinterpret<f32>(((halfSign << 16) | 0x7F800000));
+      } else {
+        // NaN, keep current mantissa but also set most significiant mantissa bit
+        return reinterpret<f32>(((halfSign << 16) | 0x7FC00000 | (halfMan << 13)));
+      }
+    }
 
-    //     // Check for subnormals, which will be normalized by adjusting exponent
-    //     if half_exp == 0 {
-    //         // Calculate how much to adjust the exponent by
-    //         let e = (half_man as u16).leading_zeros() - 6;
+    // Calculate single-precision components with adjusted exponent
+    const sign = halfSign << 16;
+    const unbiasedExp = ((halfExp as i32) >> 10) - 15;
 
-    //         // Rebias and adjust exponent
-    //         let exp = (127 - 15 - e) << 23;
-    //         let man = (half_man << (14 + e)) & 0x7F_FF_FFu32;
-    //         return f32::from_bits(sign | exp | man);
-    //     }
+    // Check for subnormals, which will be normalized by adjusting exponent
+    if (halfExp == 0) {
+      // Calculate how much to adjust the exponent by
+      const e = (clz(halfMan) - 6);
 
-    //     // Rebias exponent for a normalized normal
-    //     let exp = ((unbiased_exp + 127) as u32) << 23;
-    //     let man = (half_man & 0x03FFu32) << 13;
-    //     f32::from_bits(sign | exp | man)
-    // }
-    return 0.;
+      // Rebias and adjust exponent
+      const exp = (127 - 15 - e) << 23;
+      const man = (halfMan << (14 + e)) && 0x7FFFFF;
+      return reinterpret<f32>(sign | exp | man);
+    }
+
+    // Rebias exponent for a normalized normal
+    const exp = ((unbiasedExp + 127) as u32) << 23;
+    const man = (halfMan & 0x03FF) << 13;
+    return reinterpret<f32>(sign | exp | man);
   }
 
   private parseF32(): f32 {
@@ -417,18 +425,20 @@ export class Decoder {
     } else if (byte >= 0x1C && byte <= 0x1F) {
       throw new Error("unassigned code");
     } else if (byte >= 0x20 && byte <= 0x37) { // Major type 1: negative integer
-      return visitor.visitI8(-1 - (byte - 0x20) as i8);
+      return visitor.visitI8(-1 - ((byte - 0x20) as i8));
     } else if (byte == 0x38) {
       const value = this.parseU8();
-      return visitor.visitI16(1 - (value as i16));
+      return visitor.visitI16(-1 - (value as i16));
     } else if (byte == 0x39) {
       const value = this.parseU16();
-      return visitor.visitI32(1 - (value as i32));
+      return visitor.visitI32(-1 - (value as i32));
     } else if (byte == 0x3A) {
       const value = this.parseU32();
-      return visitor.visitI64(1 - (value as i64));
+      return visitor.visitI64(-1 - (value as i64));
     } else if (byte == 0x3B) {
-      // TODO parseU64, and check for overflow
+      const value = this.parseU64();
+      assert(value < (i32.MAX_VALUE as u32), "length out of range (would fit in a i128)");
+      return visitor.visitI64(value);
     } else if (byte >= 0x3C && byte <= 0x3F) {
       throw new Error("unassigned code");
     } else if (byte >= 0x40 && byte <= 0x57) { // Major type 2: byte string

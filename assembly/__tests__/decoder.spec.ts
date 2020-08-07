@@ -1,12 +1,11 @@
-import {Decoder, ValueVisitor, Value} from "../";
+import {Decoder, Value} from "../";
 
 function hexEncodedValue(s: string): Value {
   const buffer = s.split(" ")
     .map<u8>((byte) => { return parseInt(byte, 16) as u8; })
     .buffer;
 
-  const decoder = new Decoder(buffer);
-  return decoder.parseValue(new ValueVisitor());
+  return new Decoder(buffer).parseValue();
 }
 
 function bytesFromArray(bytes: Array<u8>): Uint8Array {
@@ -209,24 +208,18 @@ describe("Decoder", () => {
   });
 
   it("decodes arrays", () => {
-    // assert(hexEncodedValue("80").toArray() == []);
-    // expect(hexEncodedValue("80").toArray()).toBe([]);
-    // assert(hexEncodedValue("80").toArray() == []);
-    // const a = hexEncodedValue("80").toArray();
-    // const c = a == [];
-    // assert(a == []);
-    // log(hexEncodedValue("80").toArray());
-    // log(hexEncodedValue("83 01 02 03").toArray()); // [1, 2, 3]
-    // log(hexEncodedValue("83 01 82 02 03 82 04 05").toArray()); // [1, [2, 3], [4, 5]]
-    // log(hexEncodedValue("98 19 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f 10 11 12 13 14 15 16 17 18 18 18 19").toArray()); // [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25]
+    log(hexEncodedValue("80").toArray());
+    log(hexEncodedValue("83 01 02 03").toArray()); // [1, 2, 3]
+    log(hexEncodedValue("83 01 82 02 03 82 04 05").toArray()); // [1, [2, 3], [4, 5]]
+    log(hexEncodedValue("98 19 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f 10 11 12 13 14 15 16 17 18 18 18 19").toArray()); // [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25]
   });
 
   it("decodes maps", () => {
-    hexEncodedValue("a0"); // {}
-    hexEncodedValue("a2 01 02 03 04"); // {1: 2, 3: 4}
-    hexEncodedValue("a2 61 61 01 61 62 82 02 03"); // {"a": 1, "b": [2, 3]}
-    hexEncodedValue("82 61 61 a1 61 62 61 63"); // ["a", {"b": "c"}]
-    hexEncodedValue("a5 61 61 61 41 61 62 61 42 61 63 61 43 61 64 61 44 61 65 61 45"); // {"a": "A", "b": "B", "c":"C", "d": "D", "e": "E"}
+    log(hexEncodedValue("a0")); // {}
+    // log(hexEncodedValue("a2 01 02 03 04")); // {1: 2, 3: 4}
+    // log(hexEncodedValue("a2 61 61 01 61 62 82 02 03")); // {"a": 1, "b": [2, 3]}
+    // log(hexEncodedValue("82 61 61 a1 61 62 61 63")); // ["a", {"b": "c"}]
+    // log(hexEncodedValue("a5 61 61 61 41 61 62 61 42 61 63 61 43 61 64 61 44 61 65 61 45")); // {"a": "A", "b": "B", "c":"C", "d": "D", "e": "E"}
   });
 
   xit("streams values", () => {

@@ -12,8 +12,10 @@ export abstract class Value {
   static fromU64(v: u64): Value { return { v } as U64Value; }
   static fromI64(v: i64): Value { return { v } as I64Value; }
   static fromF64(v: f64): Value { return { v } as F64Value; }
-  static fromArray(): Value { return new NullValue(); }
-  static fromMap(): Value { return new NullValue(); }
+  static fromArray(v: Array<Value>): Value { return { v } as ArrayValue; }
+  static fromMap(v: Map<Value, Value>): Value { return { v } as MapValue; }
+  static fromBytes(v: Uint8Array): Value { return { v } as BytesValue; }
+  static fromString(v: string): Value { return { v } as StringValue; }
 
   isNull(): boolean { return false; }
   isNumber(): boolean { return false; }
@@ -104,7 +106,6 @@ class I64Value extends Value {
     }
     return null;
   }
-
   asF64(): Box<f64> | null { return null; } // TODO: lossless conversion or null
 
   protected ___eq(other: Value): boolean {
@@ -129,6 +130,7 @@ class F64Value extends Value {
 class ArrayValue extends Value {
   readonly v: Array<Value>;
   asArray(): Array<Value> | null { return this.v; }
+  set(index: i32, other: Value): void { this.v[index] = other; }
 
   protected ___eq(other: Value): boolean {
     const otherV = other.asArray();
@@ -139,6 +141,7 @@ class ArrayValue extends Value {
 class MapValue extends Value {
   readonly v: Map<Value, Value>;
   asMap(): Map<Value, Value> | null { return this.v; }
+  set(key: Value, value: Value): void { this.v.set(key, value); }
 
   protected ___eq(other: Value): boolean {
     const otherV = other.asMap();
@@ -166,92 +169,115 @@ class StringValue extends Value {
 
 // Visitor that does not expect any type. Can easily be extended in macros/code generation tools to generate strongly typed deserialization methods.
 export class Visitor {
-  visitU8(v: u8): Value { throw new Error("unexpected U8"); }
-  visitU16(v: u16): Value { throw new Error("unexpected U16"); }
-  visitU32(v: u32): Value { throw new Error("unexpected U32"); }
-  visitU64(v: u64): Value { throw new Error("unexpected U64"); }
-  visitI8(v: i8): Value { throw new Error("unexpected I8"); }
-  visitI16(v: i16): Value { throw new Error("unexpected I16"); }
-  visitI32(v: i32): Value { throw new Error("unexpected I32"); }
-  visitI64(v: i64): Value { throw new Error("unexpected I64"); }
-  visitF32(v: f32): Value { throw new Error("unexpected F32"); }
-  visitF64(v: f64): Value { throw new Error("unexpected F64"); }
-  visitBool(v: boolean): Value { throw new Error("unexpected Bool"); }
-  visitNull(): Value { throw new Error("unexpected Null"); }
-  visitBytes(v: Uint8Array): Value { throw new Error("unexpected Bytes"); }
-  visitString(v: string): Value { throw new Error("unexpected String"); }
-  visitArray(v: Array<Value>): Value { throw new Error("unexpected Array"); }
-  visitMap(v: Map<Value, Value>): Value { throw new Error("unexpected Map"); }
-
-  // todo: stack based visitor...
-  // push(v: Value): Value { throw new Error("pushing an unexpected Value"); }
-  // pushEntry(k: Value, v: Value) { throw new Error("pushing an unexpected Entry"); }
+  visitU8(v: u8): void { throw new Error("unexpected U8"); }
+  visitU16(v: u16): void { throw new Error("unexpected U16"); }
+  visitU32(v: u32): void { throw new Error("unexpected U32"); }
+  visitU64(v: u64): void { throw new Error("unexpected U64"); }
+  visitI8(v: i8): void { throw new Error("unexpected I8"); }
+  visitI16(v: i16): void { throw new Error("unexpected I16"); }
+  visitI32(v: i32): void { throw new Error("unexpected I32"); }
+  visitI64(v: i64): void { throw new Error("unexpected I64"); }
+  visitF32(v: f32): void { throw new Error("unexpected F32"); }
+  visitF64(v: f64): void { throw new Error("unexpected F64"); }
+  visitBool(v: boolean): void { throw new Error("unexpected Bool"); }
+  visitNull(): void { throw new Error("unexpected Null"); }
+  visitBytes(v: Uint8Array): void { throw new Error("unexpected Bytes"); }
+  visitString(v: string): void { throw new Error("unexpected String"); }
+  visitArray(len: i32): void { throw new Error("unexpected Array"); }
+  visitMap(): void { throw new Error("unexpected Map"); }
+  visitArrayElement(decoder: Decoder, index: i32): void { throw new Error("unexpected ArrayElement"); }
+  visitMapEntry(decoder: Decoder): void { throw new Error("unexpected MapEntry"); }
 }
 
 // Visitor that creates `Value`s, a loosely typed way of representing any valid CBOR value.
 export class ValueVisitor extends Visitor {
-  visitU8(v: u8): Value {
-    return { v: v as u64 } as U64Value;
+  private readonly _stack: Array<Value>;
+
+  constructor() {
+    super();
+    this._stack = new Array();
   }
 
-  visitU16(v: u16): Value {
-    return { v: v as u64 } as U64Value;
+  get value(): Value {
+    return this._stack[0];
   }
 
-  visitU32(v: u32): Value {
-    return { v: v as u64 } as U64Value;
+  visitU8(v: u8): void {
+    this._stack.push(Value.fromU64(u64(v)));
   }
 
-  visitU64(v: u64): Value {
-    return { v } as U64Value;
+  visitU16(v: u16): void {
+    this._stack.push(Value.fromU64(u64(v)));
   }
 
-  visitI8(v: i8): Value {
-    return { v: v as i64 } as I64Value;
+  visitU32(v: u32): void {
+    this._stack.push(Value.fromU64(u64(v)));
   }
 
-  visitI16(v: i16): Value {
-    return { v: v as i64 } as I64Value;
+  visitU64(v: u64): void {
+    this._stack.push(Value.fromU64(v));
   }
 
-  visitI32(v: i32): Value {
-    return { v: v as i64 } as I64Value;
+  visitI8(v: i8): void {
+    this._stack.push(Value.fromI64(i64(v)));
   }
 
-  visitI64(v: i64): Value {
-    return { v } as I64Value;
+  visitI16(v: i16): void {
+    this._stack.push(Value.fromI64(i64(v)));
   }
 
-  visitF32(v: f32): Value {
-    return { v: v as f64 } as F64Value;
+  visitI32(v: i32): void {
+    this._stack.push(Value.fromI64(i64(v)));
   }
 
-  visitF64(v: f64): Value {
-    return { v } as F64Value;
+  visitI64(v: i64): void {
+    this._stack.push(Value.fromI64(v));
   }
 
-  visitBool(v: boolean): Value {
-    return { v } as BooleanValue;
+  visitF32(v: f32): void {
+    this._stack.push(Value.fromF64(f64(v)));
   }
 
-  visitNull(): Value {
-    return new NullValue();
+  visitF64(v: f64): void {
+    this._stack.push(Value.fromF64(v));
   }
 
-  visitBytes(v: Uint8Array): Value {
-    return { v } as BytesValue;
+  visitBool(v: boolean): void {
+    this._stack.push(Value.fromBoolean(v));
   }
 
-  visitString(v: string): Value {
-    return { v } as StringValue;
+  visitNull(): void {
+    this._stack.push(Value.fromNull());
   }
 
-  visitArray(v: Array<Value>): Value {
-    return { v } as ArrayValue;
+  visitBytes(v: Uint8Array): void {
+    this._stack.push(Value.fromBytes(v));
   }
 
-  visitMap(v: Map<Value, Value>): Value {
-    return { v } as MapValue;
+  visitString(v: string): void {
+    this._stack.push(Value.fromString(v));
+  }
+
+  visitArray(len: i32): void {
+    this._stack.push(Value.fromArray(new Array(len)));
+  }
+
+  visitArrayElement(decoder: Decoder, index: i32): void {
+    this.peekAs<ArrayValue>().set(index, decoder.parseValue());
+  }
+
+  visitMap(): void {
+    this._stack.push(Value.fromMap(new Map<Value, Value>()));
+  }
+
+  visitMapEntry(decoder: Decoder): void {
+    const key = decoder.parseValue();
+    const value = decoder.parseValue();
+    this.peekAs<MapValue>().set(key, value);
+  }
+
+  private peekAs<T>(): T {
+    return this._stack[this._stack.length - 1] as T
   }
 }
 
@@ -345,178 +371,174 @@ export class Decoder {
     return v;
   }
 
-  private parseBytes(len: usize, visitor: Visitor): Value {
+  private parseBytes(len: usize, visitor: Visitor): void {
     assert(len <= (i32.MAX_VALUE as usize), "length out of range");
     const i32len = len as i32;
 
     const v = Uint8Array.wrap(this._view.buffer.slice(this._pos, i32len + 1));
     this._pos += i32len;
-    return visitor.visitBytes(v);
+    visitor.visitBytes(v);
   }
 
-  private parseString(len: usize, visitor: Visitor): Value {
+  private parseString(len: usize, visitor: Visitor): void {
     assert(len <= (i32.MAX_VALUE as usize), "length out of range");
     const i32len = len as i32;
 
     const v = String.UTF8.decode(this._view.buffer.slice(this._pos, i32len + 1));
     this._pos += i32len;
-    return visitor.visitString(v);
+    visitor.visitString(v);
   }
 
-  private parseArray(len: usize, visitor: Visitor): Value {
+  private parseArray(len: usize, visitor: Visitor): void {
     assert(len <= (i32.MAX_VALUE as usize), "length out of range");
     const i32len = len as i32;
 
-    const v = new Array<Value>(i32len);
-    for(let i: i32 = 0; i < i32len; i += 1) {
-      v[i] = this.parseValue(visitor);
+    visitor.visitArray(i32len);
+    for(let i = 0; i < i32len; i += 1) {
+      visitor.visitArrayElement(this, i);
     }
-
-    return visitor.visitArray(v);
   }
 
-  private parseMap(len: usize, visitor: Visitor): Value {
-    assert(len <= (i32.MAX_VALUE as usize), "length out of range");
-    const i32len = len as i32;
-
-    const v = new Map<Value, Value>();
-    for(let i: i32 = 0; i < i32len; i += 1) {
-      const key = this.parseValue(visitor);
-      const value = this.parseValue(visitor);
-      // TODO: validate for uniqueness
-      v.set(key, value);
+  private parseMap(len: usize, visitor: Visitor): void {
+    visitor.visitMap();
+    for(let i: usize = 0; i < len; i += 1) {
+      visitor.visitMapEntry(this);
     }
-
-    return visitor.visitMap(v);
   }
 
-  private parseIndefiniteBytes(visitor: Visitor): Value {
+  private parseIndefiniteBytes(visitor: Visitor): void {
     throw new Error("streaming is not supported.");
   }
 
-  private parseIndefiniteString(visitor: Visitor): Value {
+  private parseIndefiniteString(visitor: Visitor): void {
     throw new Error("streaming is not supported.");
   }
 
-  private parseIndefiniteArray(visitor: Visitor): Value {
+  private parseIndefiniteArray(visitor: Visitor): void {
     throw new Error("streaming is not supported.");
   }
 
-  private parseIndefiniteMap(visitor: Visitor): Value {
+  private parseIndefiniteMap(visitor: Visitor): void {
     throw new Error("streaming is not supported.");
   }
 
-  parseValue(visitor: Visitor): Value {
+  parseValue(): Value {
+    const visitor = new ValueVisitor();
+    this.parse(visitor);
+    return visitor.value;
+  }
+
+  parse(visitor: Visitor): void {
     const byte = this.parseU8();
     if (byte <= 0x17) { // Major type 0: unsigned integer
-      return visitor.visitU8(byte);
+      visitor.visitU8(byte);
     } else if (byte == 0x18) {
       const value = this.parseU8();
-      return visitor.visitU8(value);
+      visitor.visitU8(value);
     } else if (byte == 0x19) {
       const value = this.parseU16();
-      return visitor.visitU16(value);
+      visitor.visitU16(value);
     } else if (byte == 0x1A) {
       const value = this.parseU32();
-      return visitor.visitU32(value);
+      visitor.visitU32(value);
     } else if (byte == 0x1b) {
       const value = this.parseU64();
-      return visitor.visitU64(value);
+      visitor.visitU64(value);
     } else if (byte >= 0x1C && byte <= 0x1F) {
       throw new Error("unassigned code");
     } else if (byte >= 0x20 && byte <= 0x37) { // Major type 1: negative integer
-      return visitor.visitI8(-1 - ((byte - 0x20) as i8));
+      visitor.visitI8(-1 - ((byte - 0x20) as i8));
     } else if (byte == 0x38) {
       const value = this.parseU8();
-      return visitor.visitI16(-1 - (value as i16));
+      visitor.visitI16(-1 - (value as i16));
     } else if (byte == 0x39) {
       const value = this.parseU16();
-      return visitor.visitI32(-1 - (value as i32));
+      visitor.visitI32(-1 - (value as i32));
     } else if (byte == 0x3A) {
       const value = this.parseU32();
-      return visitor.visitI64(-1 - (value as i64));
+      visitor.visitI64(-1 - (value as i64));
     } else if (byte == 0x3B) {
       const value = this.parseU64();
       assert(value < (i32.MAX_VALUE as u32), "length out of range (would fit in a i128)");
-      return visitor.visitI64(value);
+      visitor.visitI64(value);
     } else if (byte >= 0x3C && byte <= 0x3F) {
       throw new Error("unassigned code");
     } else if (byte >= 0x40 && byte <= 0x57) { // Major type 2: byte string
-      return this.parseBytes(byte as usize - 0x40, visitor);
+      this.parseBytes(byte as usize - 0x40, visitor);
     } else if (byte == 0x58) {
       const len = this.parseU8() as usize;
-      return this.parseBytes(len, visitor);
+      this.parseBytes(len, visitor);
     } else if (byte == 0x59) {
       const len = this.parseU16() as usize;
-      return this.parseBytes(len, visitor);
+      this.parseBytes(len, visitor);
     } else if (byte == 0x5A) {
       const len = this.parseU32() as usize;
-      return this.parseBytes(len, visitor);
+      this.parseBytes(len, visitor);
     } else if (byte == 0x5B) {
       const len = this.parseU64();
       assert(len < (usize.MAX_VALUE as u64), "length out of range");
-      return this.parseBytes(len as usize, visitor);
+      this.parseBytes(len as usize, visitor);
     } else if (byte >= 0x5C && byte <= 0x5E) {
       throw new Error("unassigned code");
     } else if (byte == 0x5F) {
-      return this.parseIndefiniteBytes(visitor);
+      this.parseIndefiniteBytes(visitor);
     } else if (byte >= 0x60 && byte <= 0x77) { // Major type 3: a text string
-      return this.parseString(byte as usize - 0x60, visitor);
+      this.parseString(byte as usize - 0x60, visitor);
     } else if (byte == 0x78) {
       const len = this.parseU8() as usize;
-      return this.parseString(len, visitor);
+      this.parseString(len, visitor);
     } else if (byte == 0x79) {
       const len = this.parseU16() as usize;
-      return this.parseString(len, visitor);
+      this.parseString(len, visitor);
     } else if (byte == 0x7A) {
       const len = this.parseU32() as usize;
-      return this.parseString(len, visitor);
+      this.parseString(len, visitor);
     } else if (byte == 0x7B) {
       const len = this.parseU64();
       assert(len < (usize.MAX_VALUE as u64), "length out of range");
-      return this.parseString(len as usize, visitor);
+      this.parseString(len as usize, visitor);
     } else if (byte >= 0x7C && byte <= 0x7E) {
       throw new Error("unassigned code");
     } else if (byte == 0x7F) {
-      return this.parseIndefiniteString(visitor);
+      this.parseIndefiniteString(visitor);
     } else if (byte >= 0x80 && byte <= 0x97) { // Major type 4: array
-      return this.parseArray(byte as usize - 0x80, visitor);
+      this.parseArray(byte as usize - 0x80, visitor);
     } else if (byte == 0x98) {
       const len = this.parseU8() as usize;
-      return this.parseArray(len, visitor);
+      this.parseArray(len, visitor);
     } else if (byte == 0x99) {
       const len = this.parseU16() as usize;
-      return this.parseArray(len, visitor);
+      this.parseArray(len, visitor);
     } else if (byte == 0x9A) {
       const len = this.parseU32() as usize;
-      return this.parseArray(len, visitor);
+      this.parseArray(len, visitor);
     } else if (byte == 0x9B) {
       const len = this.parseU64();
       assert(len < (usize.MAX_VALUE as u64), "length out of range");
-      return this.parseArray(len as usize, visitor);
+      this.parseArray(len as usize, visitor);
     } else if (byte >= 0x9C && byte <= 0x9E) {
       throw new Error("unassigned code");
     } else if (byte == 0x9F) {
-      return this.parseIndefiniteArray(visitor);
+      this.parseIndefiniteArray(visitor);
     } else if (byte >= 0xA0 && byte <= 0xB7) { // Major type 5: map
-      return this.parseMap(byte as usize - 0xA0, visitor);
+      this.parseMap(byte as usize - 0xA0, visitor);
     } else if (byte == 0xB8) {
       const len = this.parseU8() as usize;
-      return this.parseMap(len, visitor);
+      this.parseMap(len, visitor);
     } else if (byte == 0xB9) {
       const len = this.parseU16() as usize;
-      return this.parseMap(len, visitor);
+      this.parseMap(len, visitor);
     } else if (byte == 0xBA) {
       const len = this.parseU32() as usize;
-      return this.parseMap(len, visitor);
+      this.parseMap(len, visitor);
     } else if (byte == 0xBB) {
       const len = this.parseU64();
       assert(len < (usize.MAX_VALUE as u64), "length out of range");
-      return this.parseMap(len as usize, visitor);
+      this.parseMap(len as usize, visitor);
     } else if (byte >= 0xBC && byte <= 0xBE) {
       throw new Error("unassigned code");
     } else if (byte == 0xBF) {
-      return this.parseIndefiniteMap(visitor);
+      this.parseIndefiniteMap(visitor);
     } else if (byte >= 0xC0 && byte <= 0xDB) { // Major type 6: tagged types
       throw new Error("tags not supported");
     } else if (byte >= 0xDC && byte <= 0xDF) {
@@ -524,30 +546,30 @@ export class Decoder {
     } else if (byte >= 0xE0 && byte <= 0xF3) { // Major type 7: floating points, and simple data types
       throw new Error("unassigned code");
     } else if (byte == 0xF4) {
-      return visitor.visitBool(false);
+      visitor.visitBool(false);
     } else if (byte == 0xF5) {
-      return visitor.visitBool(true);
+      visitor.visitBool(true);
     } else if (byte == 0xF6) {
-      return visitor.visitNull(); // null
+      visitor.visitNull(); // null
     } else if (byte == 0xF7) {
-      return visitor.visitNull(); // undefined (doesn't exists in AS)
+      visitor.visitNull(); // undefined (doesn't exists in AS)
     } else if (byte == 0xF8) {
       throw new Error("unassigned code");
     } else if (byte == 0xF9) {
       const value = this.parseF16();
-      return visitor.visitF32(value);
+      visitor.visitF32(value);
     } else if (byte == 0xFA) {
       const value = this.parseF32();
-      return visitor.visitF32(value);
+      visitor.visitF32(value);
     } else if (byte == 0xFb) {
       const value = this.parseF64();
-      return visitor.visitF64(value);
+      visitor.visitF64(value);
     } else if (byte >= 0xFC && byte <= 0xFE) {
       throw new Error("unassigned code");
     } else if (byte == 0xFF) {
       throw new Error("unexpected code");
+    } else {
+      throw new Error("unreachable");
     }
-
-    throw new Error("unreachable");
   }
 }

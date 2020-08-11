@@ -1,10 +1,4 @@
-export class Box<T> {
-  readonly v: T
-
-  constructor(v: T) {
-    this.v = v;
-  }
-}
+import { Box } from "./utils";
 
 export abstract class Value {
   static fromNull(): Value { return new NullValue(); }
@@ -53,17 +47,17 @@ export abstract class Value {
   toString(): string { return this.asString()!; }
 
   @operator("==")
-  __eq(other: Value): boolean {
-    return this.___eq(other);
-  }
+  protected abstract __eq(other: Value): boolean;
 
-  protected abstract ___eq(other: Value): boolean;
+  @operator("!=")
+  private __ne(other: Value): boolean { return !this.__eq(other); }
 }
 
 class NullValue extends Value {
   isNull(): boolean { return true; }
 
-  protected ___eq(other: Value): boolean {
+  protected __eq(other: Value): boolean {
+    // TODO: for some reason, virtual dispatching works here...
     return other.isNull();
   }
 }
@@ -72,7 +66,8 @@ class BooleanValue extends Value {
   readonly v: boolean;
   asBoolean(): Box<boolean> | null { return new Box(this.v); }
 
-  protected ___eq(other: Value): boolean {
+  protected __eq(other: Value): boolean {
+    // TODO: for some reason, virtual dispatching works here...
     const otherV = other.asBoolean();
     return otherV && otherV.v == this.v;
   }
@@ -90,9 +85,18 @@ class U64Value extends Value {
   asU64(): Box<u64> | null { return new Box(this.v); }
   asF64(): Box<f64> | null { return null; } // TODO: lossless conversion or null
 
-  protected ___eq(other: Value): boolean {
-    const otherV = other.asU64();
-    return otherV && otherV.v == this.v;
+  protected __eq(other: Value): boolean {
+    // TODO: virtual dispatch is broken here. Not sure why...
+    if (other instanceof U64Value) {
+      return (other as U64Value).v == this.v;
+    } else if (other instanceof I64Value) {
+      const otherV = (other as I64Value).asU64();
+      return otherV && otherV.v == this.v;
+    } else if (other instanceof F64Value) {
+      const otherV = (other as F64Value).asU64();
+      return otherV && otherV.v == this.v;
+    }
+    return false;
   }
 }
 
@@ -108,9 +112,18 @@ class I64Value extends Value {
   }
   asF64(): Box<f64> | null { return null; } // TODO: lossless conversion or null
 
-  protected ___eq(other: Value): boolean {
-    const otherV = other.asI64();
-    return otherV && otherV.v == this.v;
+  protected __eq(other: Value): boolean {
+    // TODO: virtual dispatch is broken here. Not sure why...
+    if (other instanceof U64Value) {
+      const otherV = (other as U64Value).asI64();
+      return otherV && otherV.v == this.v;
+    } else if (other instanceof I64Value) {
+      return (other as I64Value).v == this.v;
+    } else if (other instanceof F64Value) {
+      const otherV = (other as F64Value).asI64();
+      return otherV && otherV.v == this.v;
+    }
+    return false;
   }
 }
 
@@ -121,9 +134,18 @@ class F64Value extends Value {
   asU64(): Box<u64> | null { return null; } // TODO: lossless conversion or null
   asF64(): Box<f64> | null { return new Box(this.v); }
 
-  protected ___eq(other: Value): boolean {
-    const otherV = other.asF64();
-    return otherV && otherV.v == this.v;
+  protected __eq(other: Value): boolean {
+    // TODO: virtual dispatch is broken here. Not sure why...
+    if (other instanceof U64Value) {
+      const otherV = (other as U64Value).asF64();
+      return otherV && otherV.v == this.v;
+    } else if (other instanceof I64Value) {
+      const otherV = (other as I64Value).asF64();
+      return otherV && otherV.v == this.v;
+    } else if (other instanceof F64Value) {
+      return (other as F64Value).v == this.v;
+    }
+    return false;
   }
 }
 
@@ -132,9 +154,17 @@ class ArrayValue extends Value {
   asArray(): Array<Value> | null { return this.v; }
   set(index: i32, other: Value): void { this.v[index] = other; }
 
-  protected ___eq(other: Value): boolean {
-    const otherV = other.asArray();
-    return otherV && otherV == this.v;
+  protected __eq(other: Value): boolean {
+    return other instanceof ArrayValue &&
+      this.deepEqual((other as ArrayValue).v)
+  }
+
+  private deepEqual(other: Array<Value>): boolean {
+    if (this.v.length != other.length) return false;
+    for(let i = 0; i < this.v.length; i += 1) {
+      if (this.v[i] != other[i]) return false;
+    }
+    return true;
   }
 }
 
@@ -143,9 +173,19 @@ class MapValue extends Value {
   asMap(): Map<Value, Value> | null { return this.v; }
   set(key: Value, value: Value): void { this.v.set(key, value); }
 
-  protected ___eq(other: Value): boolean {
+  protected __eq(other: Value): boolean {
     const otherV = other.asMap();
     return otherV && otherV == this.v;
+  }
+
+  private deepEqual(other: Map<Value, Value>): boolean {
+    if (this.v.size != other.size) return false;
+    const keys = this.v.keys();
+    for (let i = 0; i < keys.length; i += 1) {
+      let key = keys[i];
+      if (!other.has(key) || (this.v.get(key) != other.get(key))) return false;
+    }
+    return true;
   }
 }
 
@@ -153,8 +193,18 @@ class BytesValue extends Value {
   readonly v: Uint8Array;
   asBytes(): Uint8Array | null { return this.v; }
 
-  protected ___eq(other: Value): boolean {
-    return this.asBytes() == other.asBytes();
+  protected __eq(other: Value): boolean {
+    // TODO: investigate weird virtual dispatch issue.
+    return other instanceof BytesValue &&
+      this.deepEqual((other as BytesValue).v);
+  }
+
+  private deepEqual(other: Uint8Array): boolean {
+    if (this.v.length != other.length) return false;
+    for(let i = 0; i < this.v.length; i += 1) {
+      if (this.v[i] != other[i]) return false;
+    }
+    return true;
   }
 }
 
@@ -162,8 +212,10 @@ class StringValue extends Value {
   readonly v: string;
   asString(): string | null { return this.v; }
 
-  protected ___eq(other: Value): boolean {
-    return this.asString() == other.asString();
+  protected __eq(other: Value): boolean {
+    // TODO: investigate weird virtual dispatch issue.
+    return other instanceof StringValue &&
+      this.v == (other as StringValue).v;
   }
 }
 

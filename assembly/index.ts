@@ -1,5 +1,6 @@
 export * from "./decoder";
 export * from "./encoder";
+export * from "./utils";
 
 function decode(v: ArrayBuffer): Value {
   const decoder = new Decoder(v);

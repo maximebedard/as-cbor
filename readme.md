@@ -26,8 +26,10 @@ TODOS:
 - [ ] lossless conversions for number types
 - [ ] Value#encode
 - [ ] optimize encoding to reduce array allocations during concatenations
-- [ ] refactor decoder a bit to support direct type conversion
-- [ ] check if it's possible to use custom annotations to generate encode/decode functions automatically.
+- [ ] virtual equality is bugged in a few places. Can't figure out why
+- [ ] Map keys can't define a custom hashcode. Only use reference identity.
+- [x] refactor decoder a bit to support direct type conversion
+- [ ] check if it's possible to use custom annotations to generate encode/decode functions automatically
 - [ ] add many more tests
 
 # Usage
